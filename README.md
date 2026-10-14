@@ -62,3 +62,41 @@ docker build --tag cybersentinel-frontend:ci .
 ```
 
 CI status must be confirmed in the GitHub Actions tab after pushing this repository to GitHub; local validation does not constitute a completed GitHub Actions run.
+
+## Kubernetes on Minikube
+
+Phase 4 uses same-origin routing: the frontend calls `/api/...`, and Nginx proxies those requests to the Kubernetes-internal `backend` Service. Browser JavaScript never uses the internal Service DNS name.
+
+The manifests are in `kubernetes/`. They use a 1Gi PostgreSQL PVC, one replica per workload, conservative resource limits, HTTP probes, a PostgreSQL readiness gate, and a backend command that runs `alembic upgrade head` before Uvicorn starts serving.
+
+For the documented ARM64 Docker driver workflow:
+
+```bash
+minikube start --driver=docker --cpus=2 --memory=4096
+./kubernetes/deploy.sh
+kubectl -n cybersentinel port-forward svc/frontend 8080:80
+```
+
+Open http://localhost:8080. To exercise the real backend through the frontend proxy:
+
+```bash
+curl -i -X POST http://localhost:8080/api/demo/brute_force
+kubectl -n cybersentinel get pods,svc,pvc
+kubectl -n cybersentinel logs deploy/backend
+```
+
+Troubleshooting:
+
+```bash
+kubectl -n cybersentinel describe pod -l app=backend
+kubectl -n cybersentinel logs statefulset/postgres
+kubectl -n cybersentinel get events --sort-by=.lastTimestamp
+```
+
+Cleanup:
+
+```bash
+kubectl delete namespace cybersentinel
+```
+
+The Kubernetes Secret contains development-only placeholder credentials. Replace it through a separate local secret-management process before any non-development use; no production secrets are committed.
