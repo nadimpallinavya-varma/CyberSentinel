@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from .config import settings
 from .models import Incident, SecurityEvent
+from .metrics import record_detection
 
 
 def detect(db: Session, event: SecurityEvent) -> list[Incident]:
@@ -25,6 +26,7 @@ def detect(db: Session, event: SecurityEvent) -> list[Incident]:
             continue
         incident = Incident(title=title, severity=severity, status="investigating", source_ip=event.source_ip, asset_id=event.asset_id, detection_rule=rule, evidence={"event_ids": [e.id for e in evidence_events], "count": len(evidence_events), "explanation": _explanation(rule, len(evidence_events))})
         db.add(incident)
+        record_detection(rule, severity)
         incidents.append(incident)
     if incidents:
         db.flush()

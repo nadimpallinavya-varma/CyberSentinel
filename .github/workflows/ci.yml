@@ -44,6 +44,10 @@ jobs:
       - name: Validate Docker Compose configuration
         run: docker compose config --quiet
 
+      - name: Validate Kubernetes YAML configuration
+        run: >-
+          ruby -e "require 'yaml'; Dir['kubernetes/*.yaml'].each { |file| YAML.load_stream(File.read(file)); puts \"#{file}: ok\" }"
+
       - name: Build backend Docker image
         run: docker build --tag cybersentinel-backend:ci ./backend
 

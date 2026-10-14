@@ -51,6 +51,11 @@ spec:
           env:
             - name: DATABASE_URL
               value: postgresql+psycopg://cybersentinel:cybersentinel-dev-only@postgres:5432/cybersentinel
+            - name: WAZUH_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: wazuh-integration
+                  key: WAZUH_API_KEY
           envFrom:
             - configMapRef:
                 name: cybersentinel-config

@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     burst_threshold: int = 10
     burst_window_seconds: int = 90
     deduplication_window_minutes: int = 15
+    wazuh_api_key: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

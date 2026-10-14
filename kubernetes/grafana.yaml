@@ -1,0 +1,128 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-admin
+  namespace: cybersentinel
+type: Opaque
+stringData:
+  GF_SECURITY_ADMIN_USER: admin
+  GF_SECURITY_ADMIN_PASSWORD: cybersentinel-grafana-dev
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning
+  namespace: cybersentinel
+data:
+  datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: CyberSentinel Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        editable: false
+  dashboard-provider.yaml: |
+    apiVersion: 1
+    providers:
+      - name: cybersentinel
+        orgId: 1
+        folder: CyberSentinel
+        type: file
+        disableDeletion: true
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards
+  cybersentinel-dashboard.json: |
+    {
+      "uid": "cybersentinel-ops",
+      "title": "CyberSentinel Operations",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "15s",
+      "time": {"from": "now-30m", "to": "now"},
+      "templating": {"list": []},
+      "panels": [
+        {"id":1,"type":"stat","title":"HTTP requests / sec","gridPos":{"h":4,"w":6,"x":0,"y":0},"targets":[{"expr":"sum(rate(cybersentinel_http_requests_total[5m]))","refId":"A"}]},
+        {"id":2,"type":"stat","title":"HTTP errors / sec","gridPos":{"h":4,"w":6,"x":6,"y":0},"targets":[{"expr":"sum(rate(cybersentinel_http_errors_total[5m]))","refId":"A"}]},
+        {"id":3,"type":"stat","title":"Incidents generated","gridPos":{"h":4,"w":6,"x":12,"y":0},"targets":[{"expr":"sum(cybersentinel_incidents_generated_total)","refId":"A"}]},
+        {"id":4,"type":"stat","title":"Security events processed","gridPos":{"h":4,"w":6,"x":18,"y":0},"targets":[{"expr":"sum(cybersentinel_security_events_processed_total)","refId":"A"}]},
+        {"id":5,"type":"timeseries","title":"API latency p95","gridPos":{"h":8,"w":12,"x":0,"y":4},"targets":[{"expr":"histogram_quantile(0.95, sum by (le) (rate(cybersentinel_http_request_duration_seconds_bucket[5m])))","legendFormat":"p95 latency","refId":"A"}]},
+        {"id":6,"type":"timeseries","title":"Threat detections by rule","gridPos":{"h":8,"w":12,"x":12,"y":4},"targets":[{"expr":"sum by (rule, severity) (rate(cybersentinel_threat_detections_total[5m]))","legendFormat":"{{rule}} / {{severity}}","refId":"A"}]},
+        {"id":7,"type":"timeseries","title":"Incidents by severity","gridPos":{"h":8,"w":12,"x":0,"y":12},"targets":[{"expr":"sum by (severity) (increase(cybersentinel_incidents_generated_total[30m]))","legendFormat":"{{severity}}","refId":"A"}]},
+        {"id":8,"type":"timeseries","title":"Events processed","gridPos":{"h":8,"w":12,"x":12,"y":12},"targets":[{"expr":"sum by (event_type, demo) (rate(cybersentinel_security_events_processed_total[5m]))","legendFormat":"{{event_type}} / demo={{demo}}","refId":"A"}]}
+      ]
+    }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: cybersentinel
+spec:
+  type: ClusterIP
+  selector:
+    app: grafana
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: cybersentinel
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.4.0
+          envFrom:
+            - secretRef:
+                name: grafana-admin
+          ports:
+            - name: http
+              containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          volumeMounts:
+            - name: provisioning
+              mountPath: /etc/grafana/provisioning/datasources/datasource.yaml
+              subPath: datasource.yaml
+            - name: provisioning
+              mountPath: /etc/grafana/provisioning/dashboards/dashboard-provider.yaml
+              subPath: dashboard-provider.yaml
+            - name: provisioning
+              mountPath: /var/lib/grafana/dashboards/cybersentinel-dashboard.json
+              subPath: cybersentinel-dashboard.json
+      volumes:
+        - name: provisioning
+          configMap:
+            name: grafana-provisioning

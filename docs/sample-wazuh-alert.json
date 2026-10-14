@@ -1,0 +1,18 @@
+{
+  "timestamp": "2026-01-01T12:00:00Z",
+  "rule": {
+    "id": "5712",
+    "level": 10,
+    "description": "Multiple authentication failures detected"
+  },
+  "agent": {
+    "id": "001",
+    "name": "demo-agent",
+    "ip": "192.0.2.88"
+  },
+  "data": {
+    "srcip": "192.0.2.88",
+    "dstuser": "demo-user"
+  },
+  "is_demo": true
+}
